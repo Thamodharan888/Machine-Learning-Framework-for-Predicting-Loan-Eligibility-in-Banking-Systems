@@ -1,0 +1,159 @@
+{
+  "entities": {
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Authenticated portal user public metadata and role assignment",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the portal user",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "description": "Assigned portal role",
+          "enum": ["CLIENT", "OFFICER", "MANAGER"]
+        },
+        "branch": {
+          "type": "string",
+          "description": "Assigned banking branch name",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "designation": {
+          "type": "string",
+          "description": "Role title or designation",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["uid", "name", "role", "branch", "designation", "createdAt", "updatedAt"]
+    },
+    "LoanApplicationDoc": {
+      "title": "LoanApplicationDoc",
+      "description": "Loan application status and metadata synchronized across portals",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique loan application identifier",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerUid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the applicant owner",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "applicantName": {
+          "type": "string",
+          "description": "Full legal name of the applicant",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "loanPurpose": {
+          "type": "string",
+          "description": "Loan type / purpose",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "loanAmount": {
+          "type": "number",
+          "description": "Requested loan amount in INR"
+        },
+        "creditScore": {
+          "type": "number",
+          "description": "CIBIL credit score (300-900)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current workflow status of the loan application",
+          "enum": [
+            "PENDING_REVIEW",
+            "UNDER_REVIEW",
+            "PENDING_OFFICER_REVIEW",
+            "FORWARDED_TO_MANAGER",
+            "APPROVED",
+            "CONDITIONAL_APPROVAL",
+            "REJECTED",
+            "CANCELLED",
+            "DISBURSED"
+          ]
+        },
+        "documentVerificationStatus": {
+          "type": "string",
+          "description": "Verification status of applicant documents",
+          "enum": ["VERIFIED", "PENDING", "INCOMPLETE"]
+        },
+        "statusReason": {
+          "type": "string",
+          "description": "Reason for rejection, cancellation, or approval override",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "lastActionBy": {
+          "type": "string",
+          "description": "Name and role of the user who performed the last status transition",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when application was created"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when application was last updated"
+        }
+      },
+      "required": [
+        "id",
+        "ownerUid",
+        "applicantName",
+        "loanPurpose",
+        "loanAmount",
+        "creditScore",
+        "status",
+        "documentVerificationStatus",
+        "statusReason",
+        "lastActionBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Stores user profile metadata isolated by userId"
+    },
+    "/applications/{applicationId}": {
+      "schema": { "$ref": "#/entities/LoanApplicationDoc" },
+      "description": "Stores loan application records and synchronized status state"
+    }
+  }
+}

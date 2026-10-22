@@ -1,0 +1,184 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Bootstrapped Admin & Verified Database Admin Check
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'thamod94@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprint: UserPublicProfile
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'name', 'role', 'branch', 'designation', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'name', 'role', 'branch', 'designation', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.role is string && data.role in ['CLIENT', 'OFFICER', 'MANAGER'] &&
+        data.branch is string && data.branch.size() >= 1 && data.branch.size() <= 160 &&
+        data.designation is string && data.designation.size() >= 1 && data.designation.size() <= 120 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Validation Blueprint: LoanApplicationDoc
+    function isValidLoanApplication(data) {
+      return data.keys().hasAll([
+          'id',
+          'ownerUid',
+          'applicantName',
+          'loanPurpose',
+          'loanAmount',
+          'creditScore',
+          'status',
+          'documentVerificationStatus',
+          'statusReason',
+          'lastActionBy',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id',
+          'ownerUid',
+          'applicantName',
+          'loanPurpose',
+          'loanAmount',
+          'creditScore',
+          'status',
+          'documentVerificationStatus',
+          'statusReason',
+          'lastActionBy',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 3 && data.id.size() <= 64 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 && data.ownerUid.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.applicantName is string && data.applicantName.size() >= 1 && data.applicantName.size() <= 120 &&
+        data.loanPurpose is string && data.loanPurpose.size() >= 1 && data.loanPurpose.size() <= 120 &&
+        data.loanAmount is number && data.loanAmount >= 10000 && data.loanAmount <= 100000000 &&
+        data.creditScore is number && data.creditScore >= 300 && data.creditScore <= 900 &&
+        data.status is string && data.status in [
+          'PENDING_REVIEW',
+          'UNDER_REVIEW',
+          'PENDING_OFFICER_REVIEW',
+          'FORWARDED_TO_MANAGER',
+          'APPROVED',
+          'CONDITIONAL_APPROVAL',
+          'REJECTED',
+          'CANCELLED',
+          'DISBURSED'
+        ] &&
+        data.documentVerificationStatus is string && data.documentVerificationStatus in ['VERIFIED', 'PENDING', 'INCOMPLETE'] &&
+        data.statusReason is string && data.statusReason.size() >= 0 && data.statusReason.size() <= 500 &&
+        data.lastActionBy is string && data.lastActionBy.size() >= 1 && data.lastActionBy.size() <= 160 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // Collection: /admins/{adminId}
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (request.auth.uid == adminId || isAdmin());
+      allow list: if false;
+      allow create, update, delete: if false;
+    }
+
+    // Collection: /users/{userId}
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        userId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (incoming().role == 'CLIENT' || isAdmin());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() ||
+          (
+            isOwner(userId) &&
+            incoming().role == existing().role &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'branch', 'designation', 'updatedAt'])
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // Collection: /applications/{applicationId}
+    match /applications/{applicationId} {
+      allow get: if isSignedIn() && isValidId(applicationId) && (existing().ownerUid == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+
+      allow create: if isVerifiedUser() &&
+        isValidId(applicationId) &&
+        isValidLoanApplication(incoming()) &&
+        incoming().id == applicationId &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().status == 'PENDING_REVIEW' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update: if isVerifiedUser() &&
+        isValidId(applicationId) &&
+        isValidLoanApplication(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        !(existing().status in ['CANCELLED', 'DISBURSED']) && (
+          isAdmin() ||
+          (
+            // Action: Client cancels their own pending/under-review application
+            existing().ownerUid == request.auth.uid &&
+            existing().status in ['PENDING_REVIEW', 'UNDER_REVIEW', 'PENDING_OFFICER_REVIEW'] &&
+            incoming().status == 'CANCELLED' &&
+            incoming().statusReason.size() >= 3 &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'statusReason', 'lastActionBy', 'updatedAt'])
+          )
+        );
+
+      allow delete: if false;
+    }
+  }
+}

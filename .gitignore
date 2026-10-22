@@ -1,0 +1,13 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+bun.lock
+bun.lockb
+
+# Runtime database (created automatically on first start)
+data/portal_db.json

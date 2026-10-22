@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: ai-loanguard
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_API_KEY
+        sync: false
+
+    # Free instances have an ephemeral filesystem: users and applications reset on
+    # redeploy/restart. On a paid plan, attach a disk and uncomment the lines below.
+    # disk:
+    #   name: loanguard-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
+    # and add:
+    #   - key: DATA_DIR
+    #     value: /var/data

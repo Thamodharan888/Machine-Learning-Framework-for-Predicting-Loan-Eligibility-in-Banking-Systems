@@ -1,0 +1,6 @@
+{
+  "name": "Explainable ML Loan Eligibility System",
+  "description": "An Explainable Machine Learning and AI Credit Decision Support System for Indian banking institutions featuring SHAP explanations, credit policy rule engine, human override audit trail, fairness evaluation, role-based manager and client portals, and Google authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
